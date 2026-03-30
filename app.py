@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory
 import requests
 import random
 import re
+import time
 
 app = Flask(__name__, static_folder='public')
 
@@ -12,6 +13,38 @@ TIKWM_USER_POSTS = "https://www.tikwm.com/api/user/posts"
 
 def is_thai(text):
     return bool(re.search('[ก-๙]', text))
+
+# 🔥 HEADERS กัน block
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.tiktok.com/",
+    "Origin": "https://www.tiktok.com",
+    "Connection": "keep-alive"
+}
+
+# 🔥 REQUEST กันพัง + retry
+def safe_request(url, params):
+    for i in range(3):
+        try:
+            time.sleep(random.uniform(0.8, 2.0))  # กันยิงถี่
+            res = requests.get(url, params=params, headers=headers, timeout=20)
+
+            print("STATUS:", res.status_code, "TRY:", i+1)
+
+            if res.status_code == 200 and res.text.strip():
+                try:
+                    return res.json()
+                except:
+                    print("❌ ไม่ใช่ JSON:", res.text[:100])
+            else:
+                print("❌ response ว่าง / ไม่ 200")
+
+        except Exception as e:
+            print("❌ request error:", e)
+
+    return None
 
 @app.route('/')
 def index():
@@ -25,24 +58,18 @@ def analyze():
     products = []
 
     try:
-        # --- MODE: SHOP INSIGHTS (ส่องคู่แข่ง) ---
+        # --- MODE: SHOP INSIGHTS ---
         if mode == 'shop' and target:
             print(f">>> X99 Insight: Scouting @{target}...")
             params = {"unique_id": target, "count": 15, "key": TIKWM_KEY}
-            response = requests.get(TIKWM_USER_POSTS, params=params, timeout=30)
 
-            # ✅ FIX: กัน API พัง
-            if response.status_code != 200 or not response.text.strip():
+            data = safe_request(TIKWM_USER_POSTS, params)
+            if not data:
                 return jsonify({"status": "Error", "message": "API ไม่ตอบกลับ", "products": []})
-            try:
-                data = response.json()
-            except:
-                return jsonify({"status": "Error", "message": "API ไม่ใช่ JSON", "products": []})
 
             if data.get('code') != 0:
                 return jsonify({"status": "Error", "message": data.get('msg', 'API Error'), "products": []})
 
-            # FIX: ตรวจสอบโครงสร้าง Data ให้ยืดหยุ่น
             raw_data = data.get('data')
             if isinstance(raw_data, list):
                 video_list = raw_data
@@ -78,15 +105,10 @@ def analyze():
         # --- MODE: TRENDING ---
         else:
             params = {"keywords": "review tiktokshop thailand", "region": "TH", "count": 30, "key": TIKWM_KEY}
-            response = requests.get(TIKWM_SEARCH_URL, params=params, timeout=30)
 
-            # ✅ FIX: กัน API พัง
-            if response.status_code != 200 or not response.text.strip():
+            data = safe_request(TIKWM_SEARCH_URL, params)
+            if not data:
                 return jsonify({"status": "Error", "message": "API ไม่ตอบกลับ", "products": []})
-            try:
-                data = response.json()
-            except:
-                return jsonify({"status": "Error", "message": "API ไม่ใช่ JSON", "products": []})
 
             if data.get('code') == 0:
                 video_list = data.get('data', {}).get('videos', [])
