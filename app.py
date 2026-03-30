@@ -30,8 +30,15 @@ def analyze():
             print(f">>> X99 Insight: Scouting @{target}...")
             params = {"unique_id": target, "count": 15, "key": TIKWM_KEY}
             response = requests.get(TIKWM_USER_POSTS, params=params, timeout=30)
-            data = response.json()
-            
+
+            # ✅ FIX: กัน API พัง
+            if response.status_code != 200 or not response.text.strip():
+                return jsonify({"status": "Error", "message": "API ไม่ตอบกลับ", "products": []})
+            try:
+                data = response.json()
+            except:
+                return jsonify({"status": "Error", "message": "API ไม่ใช่ JSON", "products": []})
+
             if data.get('code') != 0:
                 return jsonify({"status": "Error", "message": data.get('msg', 'API Error'), "products": []})
 
@@ -60,19 +67,33 @@ def analyze():
                     "growth": f"SCORE: {random.randint(85, 99)}"
                 })
             
-            return jsonify({"status": "Success", "products": products, "name": f"Insights: @{target}", "bio": f"สแกนวิดีโอของ @{target} สำเร็จ", "trend": "🔍 SCOUTING ACTIVE"})
+            return jsonify({
+                "status": "Success",
+                "products": products,
+                "name": f"Insights: @{target}",
+                "bio": f"สแกนวิดีโอของ @{target} สำเร็จ",
+                "trend": "🔍 SCOUTING ACTIVE"
+            })
 
-        # --- MODE: TRENDING (ดึงเทรนด์สินค้าไทย) ---
+        # --- MODE: TRENDING ---
         else:
             params = {"keywords": "review tiktokshop thailand", "region": "TH", "count": 30, "key": TIKWM_KEY}
             response = requests.get(TIKWM_SEARCH_URL, params=params, timeout=30)
-            data = response.json()
+
+            # ✅ FIX: กัน API พัง
+            if response.status_code != 200 or not response.text.strip():
+                return jsonify({"status": "Error", "message": "API ไม่ตอบกลับ", "products": []})
+            try:
+                data = response.json()
+            except:
+                return jsonify({"status": "Error", "message": "API ไม่ใช่ JSON", "products": []})
 
             if data.get('code') == 0:
                 video_list = data.get('data', {}).get('videos', [])
                 for v in video_list:
                     title = v.get('title', '')
-                    if not is_thai(title): continue
+                    if not is_thai(title): 
+                        continue
                     
                     play_count = v.get('play_count', 0)
                     revenue = (play_count / 1000) * 150
@@ -89,8 +110,16 @@ def analyze():
                         "sales": f"{play_count:,} views",
                         "growth": f"+{random.randint(40, 99)}%"
                     })
-                    if len(products) >= 12: break
-                return jsonify({"status": "Success", "products": products, "name": "Thailand Top Trends", "bio": "คัดวิดีโอสินค้าไทยที่เป็นไวรัล", "trend": "🛍️ SHOP TREND"})
+                    if len(products) >= 12:
+                        break
+
+                return jsonify({
+                    "status": "Success",
+                    "products": products,
+                    "name": "Thailand Top Trends",
+                    "bio": "คัดวิดีโอสินค้าไทยที่เป็นไวรัล",
+                    "trend": "🛍️ SHOP TREND"
+                })
 
     except Exception as e:
         print(f"❌ X99 Error: {e}")
