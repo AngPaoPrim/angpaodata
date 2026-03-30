@@ -6,7 +6,7 @@ import time
 
 app = Flask(__name__, static_folder='public')
 
-# --- [ CONFIG ] ANGPAO X99 - TIKWM LICENSED ---
+# --- CONFIG ---
 TIKWM_KEY = "952b70079e5a4675e7a01081339be9fc"
 TIKWM_SEARCH_URL = "https://www.tikwm.com/api/feed/search"
 TIKWM_USER_POSTS = "https://www.tikwm.com/api/user/posts"
@@ -28,7 +28,7 @@ headers = {
 def safe_request(url, params):
     for i in range(3):
         try:
-            time.sleep(random.uniform(0.8, 2.0))  # กันยิงถี่
+            time.sleep(random.uniform(0.8, 2.0))
             res = requests.get(url, params=params, headers=headers, timeout=20)
 
             print("STATUS:", res.status_code, "TRY:", i+1)
@@ -54,35 +54,64 @@ def index():
 def analyze():
     mode = request.args.get('mode', 'trending_products')
     target = request.args.get('target', '').replace('@', '').strip()
-    
+
     products = []
 
     try:
-        # --- MODE: SHOP INSIGHTS ---
+        # ==============================
+        # 🔥 MODE: SHOP (USER VIDEOS)
+        # ==============================
         if mode == 'shop' and target:
             print(f">>> X99 Insight: Scouting @{target}...")
+
+            # 🟢 ลอง user/posts ก่อน
             params = {"unique_id": target, "count": 15, "key": TIKWM_KEY}
-
             data = safe_request(TIKWM_USER_POSTS, params)
-            if not data:
-                return jsonify({"status": "Error", "message": "API ไม่ตอบกลับ", "products": []})
 
-            if data.get('code') != 0:
-                return jsonify({"status": "Error", "message": data.get('msg', 'API Error'), "products": []})
+            video_list = []
 
-            raw_data = data.get('data')
-            if isinstance(raw_data, list):
-                video_list = raw_data
-            elif isinstance(raw_data, dict):
-                video_list = raw_data.get('videos', [])
+            # 🔴 ถ้าโดน block → fallback search
+            if not data or data.get('code') != 0:
+                print("⚠️ FALLBACK → feed/search")
+
+                search_params = {
+                    "keywords": f"@{target}",
+                    "count": 30,
+                    "key": TIKWM_KEY
+                }
+
+                search_data = safe_request(TIKWM_SEARCH_URL, search_params)
+
+                if not search_data or search_data.get('code') != 0:
+                    return jsonify({"status": "Error", "message": "API ล้มทั้งคู่", "products": []})
+
+                raw_videos = search_data.get('data', {}).get('videos', [])
+
+                # 🔥 กรองเฉพาะ user
+                for v in raw_videos:
+                    author = v.get('author', {}).get('unique_id', '').lower()
+                    if author == target.lower():
+                        video_list.append(v)
+
+                    if len(video_list) >= 10:
+                        break
+
             else:
-                video_list = []
+                # 🟢 ใช้ user/posts ได้
+                raw_data = data.get('data')
+                if isinstance(raw_data, list):
+                    video_list = raw_data
+                elif isinstance(raw_data, dict):
+                    video_list = raw_data.get('videos', [])
+                else:
+                    video_list = []
 
+            # 🔥 map → products
             for i, v in enumerate(video_list):
                 play_count = v.get('play_count', 0)
                 revenue = (play_count / 1000) * 150
                 img_url = v.get('origin_cover') or v.get('cover') or v.get('ai_dynamic_cover')
-                
+
                 products.append({
                     "rank": i + 1,
                     "image": img_url,
@@ -93,35 +122,44 @@ def analyze():
                     "sales": f"{play_count:,} views",
                     "growth": f"SCORE: {random.randint(85, 99)}"
                 })
-            
+
             return jsonify({
                 "status": "Success",
                 "products": products,
                 "name": f"Insights: @{target}",
-                "bio": f"สแกนวิดีโอของ @{target} สำเร็จ",
-                "trend": "🔍 SCOUTING ACTIVE"
+                "bio": f"สแกนวิดีโอของ @{target}",
+                "trend": "⚡ SMART MODE"
             })
 
-        # --- MODE: TRENDING ---
+        # ==============================
+        # 🔥 MODE: TRENDING
+        # ==============================
         else:
-            params = {"keywords": "review tiktokshop thailand", "region": "TH", "count": 30, "key": TIKWM_KEY}
+            params = {
+                "keywords": "review tiktokshop thailand",
+                "region": "TH",
+                "count": 30,
+                "key": TIKWM_KEY
+            }
 
             data = safe_request(TIKWM_SEARCH_URL, params)
+
             if not data:
                 return jsonify({"status": "Error", "message": "API ไม่ตอบกลับ", "products": []})
 
             if data.get('code') == 0:
                 video_list = data.get('data', {}).get('videos', [])
+
                 for v in video_list:
                     title = v.get('title', '')
-                    if not is_thai(title): 
+                    if not is_thai(title):
                         continue
-                    
+
                     play_count = v.get('play_count', 0)
                     revenue = (play_count / 1000) * 150
                     author_id = v.get('author', {}).get('unique_id', 'user')
                     img_url = v.get('origin_cover') or v.get('cover')
-                    
+
                     products.append({
                         "rank": len(products) + 1,
                         "image": img_url,
@@ -132,6 +170,7 @@ def analyze():
                         "sales": f"{play_count:,} views",
                         "growth": f"+{random.randint(40, 99)}%"
                     })
+
                     if len(products) >= 12:
                         break
 
