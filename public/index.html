@@ -153,48 +153,59 @@
         });
 
         async function startAnalysis() {
-            const mode = document.getElementById('mode').value;
-            const target = document.getElementById('target').value;
-            const btn = document.getElementById('btn-submit');
+    const mode = document.getElementById('mode').value;
+    const target = document.getElementById('target').value;
+    const btn = document.getElementById('btn-submit');
+    
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> X99 PROCESSING...';
+    document.getElementById('trending-section').classList.add('hidden');
+
+    try {
+        // ใช้ Relative Path เพื่อให้รันได้ทุกที่
+        const response = await fetch(`/api/analyze?mode=${mode}&target=${encodeURIComponent(target)}`);
+        
+        // ตรวจสอบว่า HTTP Status โอเคไหม
+        if (!response.ok) throw new Error(`Server Error: ${response.status}`);
+
+        const data = await response.json();
+
+        if (data.status === "Success" && data.products.length > 0) {
+            document.getElementById('trending-section').classList.remove('hidden');
+            document.getElementById('res-name').innerText = data.name;
+            document.getElementById('res-bio').innerText = data.bio;
+            document.getElementById('res-trend').innerText = data.trend;
             
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> X99 PROCESSING...';
-            document.getElementById('trending-section').classList.add('hidden');
-
-            try {
-                const response = await fetch(`/api/analyze?mode=${mode}&target=${encodeURIComponent(target)}`);
-                const data = await response.json();
-
-                if (data.status === "Success" && data.products.length > 0) {
-                    document.getElementById('trending-section').classList.remove('hidden');
-                    document.getElementById('res-name').innerText = data.name;
-                    document.getElementById('res-bio').innerText = data.bio;
-                    document.getElementById('res-trend').innerText = data.trend;
-                    
-                    let rows = '';
-                    data.products.forEach(p => {
-                        rows += `
-                            <tr class="border-b border-slate-800/30 group transition-all">
-                                <td class="py-5 font-bold text-slate-600 group-hover:text-sky-400">${p.rank}</td>
-                                <td class="py-5 flex items-center gap-4">
-                                    <img src="${p.image}" class="img-preview">
-                                    <div>
-                                        <a href="${p.video_url}" target="_blank" class="font-bold text-slate-200 hover:text-sky-400 block transition leading-snug">${p.name}</a>
-                                        <div class="text-[10px] text-sky-500 font-bold mt-1 uppercase tracking-tighter">${p.price}</div>
-                                    </div>
-                                </td>
-                                <td class="py-5 text-right font-bold text-yellow-400">฿${p.revenue}</td>
-                                <td class="py-5 text-right text-slate-400 text-xs font-mono">${p.sales}</td>
-                                <td class="py-5 text-right font-extrabold text-emerald-400 italic text-base">${p.growth}</td>
-                            </tr>`;
-                    });
-                    document.getElementById('trending-list').innerHTML = rows;
-                } else if (data.status === "Error" || data.status === "No Data") {
-                    alert("Error: " + (data.message || "ไม่พบข้อมูล"));
-                }
-            } catch (error) { alert("X99 Link Error: Could not connect to API"); }
-            finally { btn.disabled = false; btn.innerHTML = '<i class="fas fa-satellite-dish"></i> เริ่มดึงข้อมูล'; }
+            let rows = '';
+            data.products.forEach(p => {
+                rows += `
+                    <tr class="border-b border-slate-800/30 group transition-all">
+                        <td class="py-5 font-bold text-slate-600 group-hover:text-sky-400">${p.rank}</td>
+                        <td class="py-5 flex items-center gap-4">
+                            <img src="${p.image}" class="img-preview" onerror="this.src='https://placehold.co/50x72?text=No+Img'">
+                            <div>
+                                <a href="${p.video_url}" target="_blank" class="font-bold text-slate-200 hover:text-sky-400 block transition leading-snug">${p.name}</a>
+                                <div class="text-[10px] text-sky-500 font-bold mt-1 uppercase tracking-tighter">${p.price}</div>
+                            </div>
+                        </td>
+                        <td class="py-5 text-right font-bold text-yellow-400">฿${p.revenue}</td>
+                        <td class="py-5 text-right text-slate-400 text-xs font-mono">${p.sales}</td>
+                        <td class="py-5 text-right font-extrabold text-emerald-400 italic text-base">${p.growth}</td>
+                    </tr>`;
+            });
+            document.getElementById('trending-list').innerHTML = rows;
+        } else {
+            // กรณีไม่มีสินค้าหรือ Status ไม่ใช่ Success
+            alert("⚠️ " + (data.message || "ไม่พบข้อมูล กรุณาลองใหม่อีกครั้ง"));
         }
+    } catch (error) { 
+        console.error("X99 Link Error:", error);
+        alert("🚨 X99 Link Error: ไม่สามารถเชื่อมต่อ API ได้ (เช็คที่ Console F12)"); 
+    } finally { 
+        btn.disabled = false; 
+        btn.innerHTML = '<i class="fas fa-satellite-dish"></i> เริ่มดึงข้อมูล'; 
+    }
+}
     </script>
 </body>
 </html>
